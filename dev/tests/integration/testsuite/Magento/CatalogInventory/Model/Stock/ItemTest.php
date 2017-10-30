@@ -76,7 +76,7 @@ class ItemTest extends \PHPUnit\Framework\TestCase
         $savedStockItem->setQty(1);
         $savedStockItem->save();
 
-        $this->assertEquals(0, $savedStockItem->getStockStatusChangedAuto());
+        $this->assertEquals(1, $savedStockItem->getStockStatusChangedAuto());
 
         $savedStockItem->setStockStatusChangedAutomaticallyFlag(1);
         $savedStockItem->save();
