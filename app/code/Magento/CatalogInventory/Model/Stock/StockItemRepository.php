@@ -5,11 +5,14 @@
  */
 namespace Magento\CatalogInventory\Model\Stock;
 
+use Magento\Catalog\Model\Product;
 use Magento\Catalog\Model\ProductFactory;
+use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory;
 use Magento\CatalogInventory\Api\Data\StockItemCollectionInterfaceFactory;
 use Magento\CatalogInventory\Api\Data\StockItemInterface;
 use Magento\CatalogInventory\Api\Data\StockItemInterfaceFactory;
 use Magento\CatalogInventory\Api\StockConfigurationInterface;
+use Magento\CatalogInventory\Api\StockItemCriteriaInterface;
 use Magento\CatalogInventory\Api\StockItemRepositoryInterface as StockItemRepositoryInterface;
 use Magento\CatalogInventory\Model\Indexer\Stock\Processor;
 use Magento\CatalogInventory\Model\ResourceModel\Stock\Item as StockItemResource;
@@ -23,7 +26,6 @@ use Magento\Framework\Exception\CouldNotSaveException;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Magento\Framework\Stdlib\DateTime\TimezoneInterface;
-use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory;
 
 /**
  * @SuppressWarnings(PHPMD.CouplingBetweenObjects)
@@ -92,7 +94,7 @@ class StockItemRepository implements StockItemRepositoryInterface
     protected $stockRegistryStorage;
 
     /**
-     * @var  \Magento\Catalog\Model\ResourceModel\Product\CollectionFactory
+     * @var  CollectionFactory
      */
     protected $productCollectionFactory;
 
@@ -110,7 +112,7 @@ class StockItemRepository implements StockItemRepositoryInterface
      * @param TimezoneInterface $localeDate
      * @param Processor $indexProcessor
      * @param DateTime $dateTime
-     * @param \Magento\Catalog\Model\ResourceModel\Product\CollectionFactory|null $collectionFactory
+     * @param CollectionFactory|null $collectionFactory
      * @SuppressWarnings(PHPMD.ExcessiveParameterList)
      */
     public function __construct(
@@ -125,7 +127,7 @@ class StockItemRepository implements StockItemRepositoryInterface
         TimezoneInterface $localeDate,
         Processor $indexProcessor,
         DateTime $dateTime,
-        \Magento\Catalog\Model\ResourceModel\Product\CollectionFactory $productCollectionFactory = null
+        CollectionFactory $productCollectionFactory = null
     ) {
         $this->stockConfiguration = $stockConfiguration;
         $this->stockStateProvider = $stockStateProvider;
@@ -145,10 +147,10 @@ class StockItemRepository implements StockItemRepositoryInterface
     /**
      * @inheritdoc
      */
-    public function save(\Magento\CatalogInventory\Api\Data\StockItemInterface $stockItem)
+    public function save(StockItemInterface $stockItem)
     {
         try {
-            /** @var \Magento\Catalog\Model\Product $product */
+            /** @var Product $product */
             $product = $this->productCollectionFactory->create()
                 ->setFlag('has_stock_status_filter')
                 ->addIdFilter($stockItem->getProductId())
@@ -162,8 +164,12 @@ class StockItemRepository implements StockItemRepositoryInterface
             $isQty = $this->stockConfiguration->isQty($typeId);
             if ($isQty) {
                 $isInStock = $this->stockStateProvider->verifyStock($stockItem);
-                if ($stockItem->getManageStock() && !$isInStock) {
-                    $stockItem->setIsInStock(false)->setStockStatusChangedAutomaticallyFlag(true);
+                if ($stockItem->getManageStock() && (
+                        (!$isInStock && $stockItem->getQty() <= $stockItem->getMinQty()) ||
+                        ($isInStock && $stockItem->getQty() >= $stockItem->getMinQty())
+                    )
+                ) {
+                    $stockItem->setIsInStock($isInStock)->setStockStatusChangedAutomaticallyFlag(true);
                 }
                 // if qty is below notify qty, update the low stock date to today date otherwise set null
                 $stockItem->setLowStockDate(null);
@@ -204,7 +210,7 @@ class StockItemRepository implements StockItemRepositoryInterface
     /**
      * @inheritdoc
      */
-    public function getList(\Magento\CatalogInventory\Api\StockItemCriteriaInterface $criteria)
+    public function getList(StockItemCriteriaInterface $criteria)
     {
         $queryBuilder = $this->queryBuilderFactory->create();
         $queryBuilder->setCriteria($criteria);
@@ -255,8 +261,8 @@ class StockItemRepository implements StockItemRepositoryInterface
     private function getStockRegistryStorage()
     {
         if (null === $this->stockRegistryStorage) {
-            $this->stockRegistryStorage = \Magento\Framework\App\ObjectManager::getInstance()
-                ->get(\Magento\CatalogInventory\Model\StockRegistryStorage::class);
+            $this->stockRegistryStorage = ObjectManager::getInstance()
+                ->get(StockRegistryStorage::class);
         }
         return $this->stockRegistryStorage;
     }
