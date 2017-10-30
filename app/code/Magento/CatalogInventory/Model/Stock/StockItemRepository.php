@@ -166,7 +166,7 @@ class StockItemRepository implements StockItemRepositoryInterface
                 $isInStock = $this->stockStateProvider->verifyStock($stockItem);
                 if ($stockItem->getManageStock() && (
                         (!$isInStock && $stockItem->getQty() <= $stockItem->getMinQty()) ||
-                        ($isInStock && $stockItem->getQty() >= $stockItem->getMinQty())
+                        ($isInStock && $stockItem->getQty() > $stockItem->getMinQty())
                     )
                 ) {
                     $stockItem->setIsInStock($isInStock)->setStockStatusChangedAutomaticallyFlag(true);
